@@ -1,0 +1,83 @@
+/* 自己定義的地方前面都有註解 "Own Define" 直接搜尋
+/* 在abc-master最外層有複製 gf.v 和 rf.v 做測試記得刪掉
+/* 目前是改在原檔, 是不是另外複製出來好
+/* 最後再處理怎麼呼叫這些自己定義的.c檔
+/* 在各種gate的地方, return input 是不是要定義成 return x
+/* 在定義gate的地方, 不太清楚他的記憶體位置連接, 所以到時候一定會各種Segmentation fault
+
+1. 建立 "eda.c" / "eda.h" 
+2. 建立 "ReadGate.c" / "ReadGate.h" 去讀檔然後parsing
+    a. 將.v檔中的gate名字刪掉, 轉成.txt檔, 所以之後應該要吃這個檔進去
+3. 建立 "InputDefine.h" 去encode或定義何謂'x', '0', '1'
+    a. 參考 "ioUtil.c -> Io_ReadCreatePi", "abcFanio.c -> Abc_ObjAddFanin"
+    b. 定義 0為00 1為01 x為10 （二進位）, 之後直接include這個檔來用
+4. 建立 "GateDefine.h" / "GateDefine.c"
+    a. 定義 AND, OR, NOT, MUX, _DC, BUF, NOR, XOR, NAND, XNOR
+5. 建立 "GateToCNF.c" / "GateToCNF.h"
+    a. 將所有gate轉成CNF方式表達
+6. 先不管readfile, 直接把名字刪掉放在"gf.v"檔裡面直接用
+
+（一） 讀檔進來, 然後做parsing
+1. 建立 "ReadGate.c" / "ReadGate.h" 去讀檔然後parsing
+    a. 將.v檔中的gate名字刪掉, 轉成.txt檔, 所以之後應該要吃這個檔進去
+
+（二） 定義 Gate 和 x-value
+1. 直接改 "abc/abcAig.c"的 LookupTable
+    /* 想法：Const0 = Abc_ObjNot(pConst1), Const1, ConstX（就是x-value） */
+    /* AND */
+    a. abc.h > //object type 定義 ABC_OBJ_CONSTX (Done)
+    b. abcAig.c > Abc_AigAlloc 建立一個 constX 的 node (Done)
+    c. abcAig.c > 在 struct Abc_Aig_t 定義 pConstX (Done)
+    d. abcAig.c > 在大概第700行的地方定義 Abc_AigConstX (Done)
+    e. abc.h > 將d.的 Abc_AigConstX 定義在這 (Done)
+    f. abcObj.c > Abc_NtkCreateObj 多加case, ABC_OBJ_CONST0, ABC_OBJ_CONSTX (Done)
+    g. abcAig.c > Abc_AigAndLookup 重改條件 (Done)
+
+    /* OR */
+    a. abcAig.c > Abc_AigOr 重改條件 (Done)
+
+    /* XOR */
+    a. abcAig.c > Abc_AigXorLookup 重改條件 (Done)
+    b. abcAig.c > Abc_AigXor 重改條件 (Done)
+
+    /* MUX */
+    a. abcAig.c > Abc_AigMuxLookup 重改條件 (Done)
+    b. abcAig.c > Abc_AigMux 重改條件 (Done)
+
+    /* _DC */
+    a. abc.h > 定義 Abc_NtkCreateNodeDC (Done)
+    b. abcObj.c > 定義 Abc_NtkCreateNodeDC (Done)
+    c. abc.h > 定義 Abc_SopCreateDC (Done)
+    d. abcSop.c > 定義 Abc_SopCreateDC (Done)
+    e. hopOper.c > 定義 Hop_DC (Done)
+    f. hopOper.c > 定義 Hop_CreateDC (Done)
+    g. abcAig.c > 定義 Abc_AigDC (Done)
+    h. abc.h > 定義 Abc_AigDC (Done)
+       ( C = in0 / D = in1 )
+    i. verCore.c > 定義DC_gate, VER_GATE_DC, Ver_ParseGateStandard (Done)
+    j. hop.h > 定義 pConstX, Hop_ManConstX
+    k. mioInt.h > 定義 pGateX
+    l. mioApi.c > 定義 Mio_LibraryReadConst
+    m. abcObj.c > 定義 Abc_NtkCreateNodeConstX
+
+  （三）轉CNF
+
+  （四）使用SAT
+
+  （五）輸出是否為 Compatible Equivalence 
+    a. abcMiter.c > Abc_NtkMiterReport 這邊改
+    b. abcVerify.c > Abc_NtkCecSat 這邊改
+    c. abcVerify.c > Abc_NtkCecFraigPart 這邊參考比較每個output
+
+  （六）定義 0, 1, x 成 0b00, 0b01, 0b10
+    /* 想法：在d.e.f定義 simulation 的 input pattern 00, 01, 10, 會呼叫到fanin0, 1, x, 在呼叫到 pConstX
+    a. abc.h > 改 fPhase
+    b. abc.h > Abc_NtkForEachPi 改成吃進兩bits
+    c. 多定義 pConst0, pConstX
+    d. abcSop.c > 把所有真值表定義改掉 ( Ascii運算遇到00 01 10會爆 )
+    e. abcVerify.c > Abc_NtkVerifySimulatePattern多定義valueX
+    f. abc.h > 定義Abc_ObjFaninX, Abc_ObjFaninCX, fCmplx
+    g. abcObj.c > Abc_CreatNodeAnd...的Sop重新定義
+
+
+
